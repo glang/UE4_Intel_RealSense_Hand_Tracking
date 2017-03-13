@@ -3,7 +3,7 @@
 #include "R200_Hand_Tracking.h"
 #include "RealsenseData.h"
 #include "rs.hpp"
-#include <string>
+#include <vector>
 
 #define print(text) if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.5, FColor::White,text)
 
@@ -47,6 +47,7 @@ void ARealsenseData::Tick( float DeltaTime )
 	dev->wait_for_frames();
 
 	const uint16_t * depth_frame = reinterpret_cast<const uint16_t *>(dev->get_frame_data(rs::stream::depth));
+	std::vector<uint16_t> divByFourVec;
 
 	for (int y = 0; y < 480; y+=2)
 	{
@@ -56,8 +57,42 @@ void ARealsenseData::Tick( float DeltaTime )
 				downIndex = currentIndex + 640,
 				rightDownIndex = downIndex + 1;
 
-			//depth_data.Add(*depth_frame++);
-			depth_data.Add((depth_frame[currentIndex] + depth_frame[rightIndex] + depth_frame[downIndex] + depth_frame[rightDownIndex]) / 4);
+			divByFourVec.push_back((depth_frame[currentIndex] + depth_frame[rightIndex] + depth_frame[downIndex] + depth_frame[rightDownIndex]) / 4);
+		}
+	}
+
+	for (int y = 0; y < 240; y++)
+	{
+		for (int x = 0; x < 320; x++) {
+			if (y == 0 || y == 239 || x == 0 || x == 319 || divByFourVec[y * 320 + x] == 0) {
+				depth_data.Add(0);
+			} else {
+				int currentIndex = y * 320 + x,
+					leftIndex = currentIndex - 1,
+					rightIndex = currentIndex + 1,
+					upIndex = currentIndex - 320,
+					upLeftIndex = upIndex - 1,
+					upRightIndex = upIndex + 1,
+					downIndex = currentIndex + 320,
+					downLeftIndex = downIndex - 1,
+					downRightIndex = downIndex + 1,
+					count = 0;
+
+				if (divByFourVec[upLeftIndex]) count++;
+				if (divByFourVec[upIndex]) count++;
+				if (divByFourVec[upRightIndex]) count++;
+				if (divByFourVec[leftIndex]) count++;
+				if (divByFourVec[rightIndex]) count++;
+				if (divByFourVec[downLeftIndex]) count++;
+				if (divByFourVec[downIndex]) count++;
+				if (divByFourVec[downRightIndex]) count++;
+
+				if (count < 8) {
+					depth_data.Add(0);
+				} else {
+					depth_data.Add(divByFourVec[currentIndex]);
+				}
+			}
 		}
 	}
 }
